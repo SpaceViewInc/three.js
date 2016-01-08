@@ -14,7 +14,7 @@ Sidebar.Geometry.Modifiers = function ( editor, object ) {
 
 	var button = new UI.Button( 'Compute Vertex Normals' );
 	button.onClick( function () {
-
+		geometry.computeFaceNormals();
 		geometry.computeVertexNormals();
 
 		if ( geometry instanceof THREE.BufferGeometry ) {

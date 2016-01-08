@@ -81,6 +81,140 @@ Sidebar.Object = function ( editor ) {
 
 	container.add( objectUUIDRow );
 
+
+	THREE.Euler.prototype.toPrettyDeg = function(){
+		function toDeg(rad){
+			return rad*(180/Math.PI);
+		}
+		return {
+			x: toDeg(this.x),
+			y: toDeg(this.y),
+			z: toDeg(this.z)
+		};
+	}
+	// http://stackoverflow.com/questions/27022160/three-js-can-i-apply-position-rotation-and-scale-to-the-geometry
+	// object.updateMatrix();
+	//
+	// object.geometry.applyMatrix( object.matrix );
+	//
+	// object.position.set( 0, 0, 0 );
+	// object.rotation.set( 0, 0, 0 );
+	// object.scale.set( 1, 1, 1 );
+	// object.updateMatrix();
+	//
+	// signals.objectChanged.dispatch( obj );
+
+	function rotateAroundObject( object, rotation) {
+		var axisToVector = {
+			'x': new THREE.Vector3(1, 0, 0),
+			'y': new THREE.Vector3(0, 1, 0),
+			'z': new THREE.Vector3(0, 0, 1)
+		};
+
+		rotation.order.split('').forEach(function(axis){
+			var normalizedAxisName = axis.toLowerCase();
+			var axisVector = axisToVector[normalizedAxisName];
+			if (!axisVector){
+				throw new Error("Couldn't get proper vector for axis " + axis);
+			}
+			var rotationMatrix = new THREE.Matrix4();
+			rotationMatrix.makeRotationAxis( axisVector.normalize(), rotation[normalizedAxisName]);
+			rotationMatrix.multiply(object.matrix);        // pre-multiply
+		    object.matrix = rotationMatrix;
+		    //object.matrix.multiply( rotationMatrix );                       // post-multiply
+		    object.rotation.setFromRotationMatrix(object.matrix, object.order);
+		});
+
+	}
+
+	// Apply Matrix functions
+	var applyMatrixAttributeToObjectByName = function(obj, name, skipUndo){
+		// Prepare Object/Ensure Position matches matrix.
+		obj.updateMatrix();
+		var position = new THREE.Vector3();
+		var quaternion = new THREE.Quaternion();
+		var scale = new THREE.Vector3();
+		// MUTABILITYYYYYYY
+		obj.matrixWorld.decompose(position, quaternion, scale);
+
+		// scale * point_translation * rotation * object_translation
+
+		// Make new transform for this operation
+		var toTransform = new THREE.Matrix4();
+
+		switch(name){
+			case "position":
+				// /* WIP TRANSLATION */
+				// var oldRotation = obj.rotation.clone();
+				// // toTransform.makeRotationFromQuaternion(quaternion.clone());
+				// toTransform.setPosition(position);
+				// // var rotationCorrection = new THREE.Matrix4().makeRotationFromQuaternion(quaternion.clone());
+				// // var finalTransform = toTransform.multiply(rotationCorrection);
+				// // console.log(toTransform.elements, rotationCorrection.elements, finalTransform.elements);
+				//
+				// rotateAroundObject(obj, oldRotation);
+				// obj.rotation.setFromVector3(oldRotation.toVector3());
+				//
+				// obj.geometry.applyMatrix( toTransform );
+				//
+				// obj.position.set(0,0,0);
+				// obj.updateMatrix();
+
+				// http://stackoverflow.com/questions/27022160/three-js-can-i-apply-position-rotation-and-scale-to-the-geometry
+				obj.updateMatrix();
+
+				if(obj.geometry){
+					obj.geometry.applyMatrix( obj.matrix );
+				}
+
+				obj.position.set( 0, 0, 0 );
+				obj.rotation.set( 0, 0, 0 );
+				obj.scale.set( 1, 1, 1 );
+				obj.updateMatrix();
+			break;
+
+			case "rotation":
+				//toTransform.setPosition(position);
+				toTransform.makeRotationFromQuaternion(quaternion.clone());
+				
+				obj.children.forEach(function(child){
+					child.rotation.setFromRotationMatrix(toTransform);
+				});
+
+				if(obj.geometry){
+					obj.geometry.applyMatrix(toTransform);
+				}
+				obj.rotation.set(0,0,0);
+				obj.updateMatrix();
+			break;
+
+			case "scale":
+			//toTransform.make
+			break;
+		}
+		signals.objectChanged.dispatch( obj );
+	}
+
+	var applyMatrixFunctionsRow = new UI.Panel();
+
+	var applyPositionButton = new UI.Button( 'Pos, Scale, Rotation' ).onClick( function(){
+		applyMatrixAttributeToObjectByName(editor.selected, 'position');
+	});
+	var applyRotationButton = new UI.Button( 'Rotation' ).onClick( function(){
+		applyMatrixAttributeToObjectByName(editor.selected, 'rotation');
+	});
+	var applyScaleButton = new UI.Button( 'Scale' ).onClick( function(){
+		applyMatrixAttributeToObjectByName(editor.selected, 'scale');
+	});
+
+	applyMatrixFunctionsRow.add( new UI.Text( 'Apply' ).setWidth( '90px' ) );
+	applyMatrixFunctionsRow.add( applyPositionButton );
+	applyMatrixFunctionsRow.add( applyRotationButton );
+	applyMatrixFunctionsRow.add( applyScaleButton );
+
+	container.add( applyMatrixFunctionsRow );
+
+
 	// name
 
 	var objectNameRow = new UI.Row();
@@ -508,7 +642,7 @@ Sidebar.Object = function ( editor ) {
 	function updateRows( object ) {
 
 		var properties = {
-			// 'parent': objectParentRow,
+			'parent': objectParentRow,
 			'fov': objectFovRow,
 			'near': objectNearRow,
 			'far': objectFarRow,
