@@ -3,6 +3,7 @@
  */
 
 var Editor = function () {
+	var self = this;
 
 	var SIGNALS = signals;
 
@@ -90,9 +91,33 @@ var Editor = function () {
 	this.selected = null;
 	this.helpers = {};
 
+	if(Mousetrap){
+		Mousetrap.bind('w', function(){
+			self.signals.transformModeChanged.dispatch( 'translate' );
+		});
+
+		Mousetrap.bind('e', function(){
+			self.signals.transformModeChanged.dispatch( 'rotate' );
+		});
+
+		Mousetrap.bind('r', function(){
+			self.signals.transformModeChanged.dispatch( 'scale' );
+		});
+
+		Mousetrap.bind(['ctrl+z', 'meta+z'], function(){
+			self.history.undo();
+			return false;
+		});
+
+		Mousetrap.bind(['ctrl+y', 'meta+y'], function(){
+			self.history.redo();
+			return false;
+		});
+	}
 };
 
 Editor.prototype = {
+
 
 	setTheme: function ( value ) {
 
