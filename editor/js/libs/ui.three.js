@@ -243,7 +243,6 @@ UI.Outliner.prototype.setOptions = function ( options ) {
 	}
 
 	function onClick() {
-
 		scope.setValue( this.value );
 
 		var changeEvent = document.createEvent( 'HTMLEvents' );
@@ -397,7 +396,6 @@ UI.Outliner.prototype.setValue = function ( value ) {
 		if ( element.value === value ) {
 
 			element.classList.add( 'active' );
-
 			// scroll into view
 
 			var y = element.offsetTop - this.dom.offsetTop;

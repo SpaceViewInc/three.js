@@ -81,6 +81,16 @@ Sidebar.Object = function ( editor ) {
 
 	container.add( objectUUIDRow );
 
+	// Material
+
+	var objectMaterialRow = new UI.Row();
+	objectMaterialRow.add( new UI.Text( 'Material' ).setWidth( '90px' ) );
+	var objectMaterial = new UI.Select().setWidth( '150px' ).setRight( '8px' ).setFontSize( '11px' ).onChange( update );
+	objectMaterialRow.add( objectMaterial );
+
+	container.add( objectMaterialRow );
+
+
 
 	THREE.Euler.prototype.toPrettyDeg = function(){
 		function toDeg(rad){
@@ -176,7 +186,7 @@ Sidebar.Object = function ( editor ) {
 			case "rotation":
 				//toTransform.setPosition(position);
 				toTransform.makeRotationFromQuaternion(quaternion.clone());
-				
+
 				obj.children.forEach(function(child){
 					child.rotation.setFromRotationMatrix(toTransform);
 				});
@@ -508,6 +518,14 @@ Sidebar.Object = function ( editor ) {
 
 			}
 
+			if ( object.material != null){
+				var newMaterialId = objectMaterial.getValue();
+				var newMaterial = editor.materials[newMaterialId]
+				if( newMaterial && object.material.uuid !== newMaterialId){
+					editor.execute( new SetMaterialCommand(object, newMaterial));
+				}
+			}
+
 
 			var newPosition = new THREE.Vector3( objectPositionX.getValue(), objectPositionY.getValue(), objectPositionZ.getValue() );
 			if ( object.position.distanceTo( newPosition ) >= 0.01 ) {
@@ -683,6 +701,29 @@ Sidebar.Object = function ( editor ) {
 
 	}
 
+	function updateSelectOptions(){
+		var scene = editor.scene;
+		var materials = editor.materials;
+		var materialOptions = {};
+		var options = {};
+
+		scene.traverse( function ( object ) {
+			options[ object.id ] = object.name;
+			var objectMat = object.material;
+			if(objectMat && !materials[objectMat.uuid]){
+				materials[object.material.uuid] = object.material;
+			}
+		} );
+		Object.keys(materials).forEach(function(key){
+			materialOptions[key] = materials[key].name || "";
+		});
+		objectMaterial.setOptions( materialOptions );
+		objectParent.setOptions( options );
+		if(editor.selected && editor.selected instanceof THREE.Mesh){
+			objectMaterial.setValue(editor.selected.material.uuid);
+		}
+}
+
 	// events
 
 	signals.objectSelected.add( function ( object ) {
@@ -704,19 +745,12 @@ Sidebar.Object = function ( editor ) {
 
 
 	signals.sceneGraphChanged.add( function () {
-
-		var scene = editor.scene;
-		var options = {};
-
-		scene.traverse( function ( object ) {
-
-			options[ object.id ] = object.name;
-
-		} );
-
-		objectParent.setOptions( options );
-
+		updateSelectOptions();
 	} );
+
+	signals.materialChanged.add( function() {
+		updateSelectOptions();
+	})
 
 
 	signals.objectChanged.add( function ( object ) {
@@ -743,12 +777,13 @@ Sidebar.Object = function ( editor ) {
 		objectName.setValue( object.name );
 
 
-		if ( object.parent !== null ) {
-
+		if ( object.parent != null ) {
 			objectParent.setValue( object.parent.id );
-
 		}
 
+		if ( object.material != null) {
+			objectMaterial.setValue( object.material.uuid );
+		}
 
 		objectPositionX.setValue( object.position.x );
 		objectPositionY.setValue( object.position.y );
@@ -856,7 +891,7 @@ Sidebar.Object = function ( editor ) {
 		objectUserData.setBackgroundColor( '' );
 
 		updateTransformRows( object );
-
+		this.editor.signals.sceneGraphChanged.dispatch();
 	}
 
 	return container;

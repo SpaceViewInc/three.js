@@ -242,6 +242,7 @@ Sidebar.Scene = function ( editor ) {
 	// events
 
 	signals.sceneGraphChanged.add( refreshUI );
+	signals.materialChanged.add( refreshUI );
 
 	signals.objectChanged.add( function ( object ) {
 

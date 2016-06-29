@@ -2,14 +2,100 @@
  * @author mrdoob / http://mrdoob.com/
  */
 
-Sidebar.Material = function ( editor ) {
+Sidebar.Material = function ( editor, isRootTab ) {
 
 	var signals = editor.signals;
 	var currentObject;
+	var newMaterialButtonPressed;
 
 	var container = new UI.Panel();
 	container.setBorderTop( '0' );
 	container.setPaddingTop( '20px' );
+	// if Main tab, render an outliner
+	var outliner = null;
+	if(isRootTab){
+		outliner = new UI.Outliner( editor );
+		outliner.setId('outliner');
+		outliner.onChange( function () {
+			//console.log('selecting material');
+			editor.selectMaterialById(outliner.getValue());
+		} );
+		container.add( outliner );
+		container.add( new UI.Break() );
+	}
+
+	// preview
+	var previewSize = 200;
+	var preview = new UI.Div();
+	var previewDom = preview.dom;
+	container.add(preview);
+	container.add( new UI.Break() );
+	var scene = new THREE.Scene();
+	var camera = new THREE.PerspectiveCamera( 75, 1, 0.1, 50 );
+	camera.position.z = 30;
+
+	var renderer = new THREE.WebGLRenderer( { antialias: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setSize( previewSize, previewSize );
+	previewDom.appendChild( renderer.domElement );
+
+	var ambientLight = new THREE.AmbientLight( 0x000000 );
+	scene.add( ambientLight );
+
+	var lights = [];
+	lights[0] = new THREE.PointLight( 0xffffff, 1, 0 );
+	lights[1] = new THREE.PointLight( 0xffffff, 1, 0 );
+	lights[2] = new THREE.PointLight( 0xffffff, 1, 0 );
+
+	lights[0].position.set( 0, 200, 0 );
+	lights[1].position.set( 100, 200, 100 );
+	lights[2].position.set( -100, -200, -100 );
+
+	scene.add( lights[0] );
+	scene.add( lights[1] );
+	scene.add( lights[2] );
+
+	var geometry = new THREE.TorusKnotGeometry( 10, 3, 100, 16 );
+	var mesh = new THREE.Mesh( geometry );
+
+	if (editor.selectedMaterial)	{
+		mesh.material = editor.selectedMaterial;
+	}
+
+	scene.add( mesh );
+
+	var prevFog = false;
+
+	var render = function () {
+
+		requestAnimationFrame( render );
+
+		var time = Date.now() * 0.001;
+
+		mesh.rotation.x += 0.005;
+		mesh.rotation.y += 0.005;
+
+		if ( prevFog !== scene.fog ) {
+
+			mesh.material.needsUpdate = true;
+			prevFog = scene.fog;
+
+		}
+
+		if ( mesh.morphTargetInfluences ) {
+
+			mesh.morphTargetInfluences[ 0 ] = ( 1 + Math.sin( 4 * time ) ) / 2;
+
+		}
+
+		renderer.render( scene, camera );
+
+	};
+
+
+	render();
+
+
 
 	// New / Copy / Paste
 
@@ -61,9 +147,15 @@ Sidebar.Material = function ( editor ) {
 		'SpriteMaterial': 'SpriteMaterial'
 
 	} ).setWidth( '150px' ).setFontSize( '12px' ).onChange( update );
+	var newMaterialButton = new UI.Button( '+' ).setMarginLeft( '7px' ).onClick( function () {
+		newMaterialButtonPressed = true;
+		update();
+		refreshUI();
+	});
 
 	materialClassRow.add( new UI.Text( 'Type' ).setWidth( '90px' ) );
 	materialClassRow.add( materialClass );
+	materialClassRow.add( newMaterialButton );
 
 	container.add( materialClassRow );
 
@@ -464,9 +556,19 @@ Sidebar.Material = function ( editor ) {
 	container.add( materialWireframeRow );
 
 	//
+	function instanceMaterialName(material) {
+		if(material.name === "" ){
+			return "blank_1";
+		}
+		var copyNumber = material.name.match(/\_(\d+)$/);
+		if(copyNumber){
+			return material.name.slice(0, copyNumber.index) + "_" + (+copyNumber[1] + 1);
+		}
+		return material.name + "_1";
+	}
+
 
 	function update() {
-
 		var object = currentObject;
 
 		var geometry = object.geometry;
@@ -474,30 +576,48 @@ Sidebar.Material = function ( editor ) {
 
 		var textureWarning = false;
 		var objectHasUvs = false;
-
+		//
+		// if(editor.selectedMaterial){
+		// 	material = editor.selectedMaterial;
+		// 	objectHasUvs = true;
+		// }
 		if ( object instanceof THREE.Sprite ) objectHasUvs = true;
 		if ( geometry instanceof THREE.Geometry && geometry.faceVertexUvs[ 0 ].length > 0 ) objectHasUvs = true;
 		if ( geometry instanceof THREE.BufferGeometry && geometry.attributes.uv !== undefined ) objectHasUvs = true;
-
 		if ( material ) {
 
 			if ( material.uuid !== undefined && material.uuid !== materialUUID.getValue() ) {
-
 				editor.execute( new SetMaterialValueCommand( currentObject, 'uuid', materialUUID.getValue() ) );
-
 			}
-
-			if ( material instanceof THREE[ materialClass.getValue() ] === false ) {
-
-				material = new THREE[ materialClass.getValue() ]();
-
-				editor.execute( new SetMaterialCommand( currentObject, material ), 'New Material: ' + materialClass.getValue() );
-				// TODO Copy other references in the scene graph
-				// keeping name and UUID then.
-				// Also there should be means to create a unique
-				// copy for the current object explicitly and to
-				// attach the current material to other objects.
-
+			if ( newMaterialButtonPressed || material instanceof THREE[ materialClass.getValue() ] === false ) {
+				var oldMaterial = material;
+				material = Object.assign({},oldMaterial);
+				oldMaterial.dispose();
+				if(newMaterialButtonPressed){
+					delete material.uuid;
+					material.name = instanceMaterialName(material);
+					newMaterialButtonPressed = false;
+				}
+				var newMaterial = new THREE[ materialClass.getValue() ]();
+				if(material.type){
+					delete material.type;
+				}
+				delete material.program;
+				  for (var nextKey in material) {
+					if (newMaterial.hasOwnProperty(nextKey)) {
+					  var replacement = material[nextKey];
+					  replacement = replacement && typeof replacement.clone === 'function' ? replacement.clone() : replacement;
+					  newMaterial[nextKey] = replacement;
+					}
+				  }
+				newMaterial.needsUpdate = true;
+				editor.scene.traverse(function(child){
+					if(child.material && child.material.uuid === newMaterial.uuid){
+						child.material = newMaterial;
+					}
+				})
+				//material.dispose();
+				editor.execute( new SetMaterialCommand( currentObject, newMaterial ), 'Set Material Type: ' + materialClass.getValue() );
 			}
 
 			if ( material.color !== undefined && material.color.getHex() !== materialColor.getHexValue() ) {
@@ -536,7 +656,7 @@ Sidebar.Material = function ( editor ) {
 
 			}
 
-			if ( material.vertexColors !== undefined ) {
+			if ( material.vertexColors != undefined ) {
 
 				var vertexColors = parseInt( materialVertexColors.getValue() );
 
@@ -887,8 +1007,6 @@ Sidebar.Material = function ( editor ) {
 
 			}
 
-			refreshUI( false );
-
 			signals.materialChanged.dispatch( material );
 
 		}
@@ -949,9 +1067,24 @@ Sidebar.Material = function ( editor ) {
 
 
 	function refreshUI( resetTextureSelectors ) {
+		if(outliner){
+			//console.log("updating outliner materials");
+			var pad = '&nbsp;&nbsp;&nbsp;';
+			var materials = editor.materials;
+			var options = Object.keys(materials).map(function(materialUuid){
+				var material = materials[materialUuid];
+				var html = pad + '<span class="type ' + material.type + '"></span> ' + (material.name ? material.name : material.type + '-' +  material.uuid);
+				return { value: material.uuid, html: html };
+			})
+			outliner.setOptions(options);
+
+			if ( editor.selected && editor.selected.material && resetTextureSelectors) {
+				outliner.setValue( editor.selected.material.uuid );
+			}
+		}
 
 		if ( ! currentObject ) return;
-
+		//console.log("material at time of changing was", currentObject.material)
 		var material = currentObject.material;
 
 		if ( material.uuid !== undefined ) {
@@ -1217,10 +1350,17 @@ Sidebar.Material = function ( editor ) {
 		}
 
 		setRowVisibility();
-
+		//console.log("setting preview mesh mateiral to ", material);
+		mesh.material = material.clone();
+		mesh.material.needsUpdate = true;
 	}
 
+
 	// events
+
+	signals.sceneGraphChanged.add( function(object) {
+		refreshUI();
+	});
 
 	signals.objectSelected.add( function ( object ) {
 
@@ -1241,10 +1381,16 @@ Sidebar.Material = function ( editor ) {
 
 	} );
 
-	signals.materialChanged.add( function () {
-
+	signals.materialSelected.add( function(material) {
+		//console.log("selecting material and setting it to active.");
+		currentObject = {
+			material: material
+		}
 		refreshUI();
+	});
 
+	signals.materialChanged.add( function () {
+		refreshUI();
 	} );
 
 	return container;

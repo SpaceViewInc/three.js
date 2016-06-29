@@ -12,6 +12,7 @@ var Sidebar = function ( editor ) {
 	var sceneTab = new UI.Text( 'SCENE' ).onClick( onClick );
 	var projectTab = new UI.Text( 'PROJECT' ).onClick( onClick );
 	var settingsTab = new UI.Text( 'SETTINGS' ).onClick( onClick );
+	//var materialsTab = new UI.Text( 'MATERIALS').onClick( onClick );
 
 	var tabs = new UI.Div();
 	tabs.setId( 'tabs' );
@@ -45,6 +46,10 @@ var Sidebar = function ( editor ) {
 	);
 	container.add( settings );
 
+	// var materials = new UI.Span().add(
+	// 	new Sidebar.Material( editor, true )
+	// );
+	// container.add( materials );
 	//
 
 	function select( section ) {
@@ -52,10 +57,12 @@ var Sidebar = function ( editor ) {
 		sceneTab.setClass( '' );
 		projectTab.setClass( '' );
 		settingsTab.setClass( '' );
+		//materialsTab.setClass( '' );
 
 		scene.setDisplay( 'none' );
 		project.setDisplay( 'none' );
 		settings.setDisplay( 'none' );
+		//materials.setDisplay( 'none' );
 
 		switch ( section ) {
 			case 'SCENE':
@@ -70,6 +77,10 @@ var Sidebar = function ( editor ) {
 				settingsTab.setClass( 'selected' );
 				settings.setDisplay( '' );
 				break;
+			// case 'MATERIALS':
+			// 	materialsTab.setClass( 'selected' );
+			// 	materials.setDisplay( '' );
+			// 	break;
 		}
 
 	}

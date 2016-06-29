@@ -27,15 +27,15 @@ SetMaterialCommand.prototype = {
 	execute: function () {
 
 		this.object.material = this.newMaterial;
+		this.editor.addMaterial(this.newMaterial);
 		this.editor.signals.materialChanged.dispatch( this.newMaterial );
 
 	},
 
 	undo: function () {
-
 		this.object.material = this.oldMaterial;
+		this.editor.addMaterial(this.newMaterial);
 		this.editor.signals.materialChanged.dispatch( this.oldMaterial );
-
 	},
 
 	toJSON: function () {

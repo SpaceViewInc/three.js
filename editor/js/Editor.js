@@ -4,7 +4,7 @@
 
 var Editor = function () {
 	var self = this;
-
+	window.editor = self;
 	this.DEFAULT_CAMERA = new THREE.PerspectiveCamera( 50, 1, 0.1, 10000 );
 	this.DEFAULT_CAMERA.name = 'Camera';
 	this.DEFAULT_CAMERA.position.set( 20, 10, 20 );
@@ -58,6 +58,7 @@ var Editor = function () {
 		helperRemoved: new Signal(),
 
 		materialChanged: new Signal(),
+		materialSelected: new Signal(),
 
 		scriptAdded: new Signal(),
 		scriptChanged: new Signal(),
@@ -94,6 +95,8 @@ var Editor = function () {
 	this.scripts = {};
 
 	this.selected = null;
+	this.selectedMaterial = null;
+
 	this.helpers = {};
 
 	if(Mousetrap){
@@ -118,6 +121,9 @@ var Editor = function () {
 			self.history.redo();
 			return false;
 		});
+		Mousetrap.bind(['f'], function(){
+			self.signals.objectFocused.dispatch( self.selected );
+		})
 	}
 };
 
@@ -161,9 +167,25 @@ Editor.prototype = {
 
 		var scope = this;
 
-		object.traverse( function ( child ) {
+		object.traverse(function (child) {
 
-			if ( child.geometry !== undefined ) scope.addGeometry( child.geometry );
+			if (child.geometry !== undefined) {
+				console.log("WAT");
+				var geometry = child.geometry;
+				geometry.computeFaceNormals();
+				geometry.computeVertexNormals();
+
+				if ( geometry instanceof THREE.BufferGeometry ) {
+
+					geometry.attributes.normal.needsUpdate = true;
+
+				} else {
+
+					geometry.normalsNeedUpdate = true;
+
+				}
+				scope.addGeometry(geometry);
+			}
 			if ( child.material !== undefined ) scope.addMaterial( child.material );
 
 			scope.addHelper( child );
@@ -380,6 +402,28 @@ Editor.prototype = {
 
 		this.config.setKey( 'selected', uuid );
 		this.signals.objectSelected.dispatch( object );
+	},
+
+	selectMaterial: function (material) {
+		if ( this.selected === material ) return;
+
+		var uuid = null;
+
+		if ( material !== null ) {
+
+			uuid = material.uuid;
+
+		}
+
+		this.selectedMaterial = material;
+
+		this.config.setKey( 'selectedMaterial', uuid );
+		this.signals.materialSelected.dispatch( material );
+	},
+
+	selectMaterialById: function ( id ) {
+
+		this.selectMaterial( this.materials[id] );
 
 	},
 
@@ -395,6 +439,7 @@ Editor.prototype = {
 		this.select( this.scene.getObjectById( id, true ) );
 
 	},
+
 
 	selectByUuid: function ( uuid ) {
 
